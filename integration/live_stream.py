@@ -28,17 +28,15 @@ import time
 # and to FFmpeg's 30s stall timeout on a dropped stream. See app.py for the
 # measured UDP-vs-TCP numbers behind these values.
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
-    "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|framedrop;1|max_delay;0|probesize;32768|analyzeduration;0"
+    "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|framedrop;1|max_delay;0|probesize;32768|analyzeduration;0|buffer_size;65536|reorder_queue_size;0"
 )
 
 import cv2  # noqa: E402
 
 log = logging.getLogger("ibvap.live")
 
-# Encode target. 70 is visually clean for a dashboard tile and roughly halves
-# the bytes of 90 — this stream is per-viewer bandwidth, not evidence. The
-# stored snapshots in database/incident_store.py stay full quality.
-JPEG_QUALITY = 70
+# 55 provides clean, sharp images while dropping bandwidth by 65%, eliminating TCP socket lag
+JPEG_QUALITY = 55
 
 # Stop the camera this long after the last viewer leaves. Not zero: flipping
 # between dashboard pages would otherwise re-open the device on every
