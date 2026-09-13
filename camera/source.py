@@ -74,8 +74,23 @@ class CameraSource:
                 except Exception as e:
                     if isinstance(e, RuntimeError):
                         raise
-                cap = cv2.VideoCapture(src_str, cv2.CAP_FFMPEG)
-                if not cap.isOpened():
+
+                candidates = [src_str]
+                if src_str.endswith("/"):
+                    candidates.insert(0, src_str.rstrip("/"))
+                    candidates.append(src_str.rstrip("/") + "/live")
+                elif not parsed.path or parsed.path == "/":
+                    candidates.append(src_str + "/live")
+
+                cap = None
+                for candidate in candidates:
+                    test_cap = cv2.VideoCapture(candidate, cv2.CAP_FFMPEG)
+                    if test_cap.isOpened():
+                        cap = test_cap
+                        break
+                    test_cap.release()
+
+                if cap is None or not cap.isOpened():
                     cap = cv2.VideoCapture(src_str)
             else:
                 cap = cv2.VideoCapture(src_str)
@@ -86,11 +101,11 @@ class CameraSource:
             cap.release()
             raise RuntimeError(f"Could not open camera source: {redact_source(self.source)}")
 
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         if isinstance(src, int):
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
             cap.set(cv2.CAP_PROP_FPS, 30.0)
-            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         self.cap = cap
         log.info(
@@ -130,7 +145,7 @@ class CameraSource:
             # compare when the camera already gave us what we asked for.
             h, w = frame.shape[:2]
             if (w, h) != (self.width, self.height):
-                frame = cv2.resize(frame, (self.width, self.height))
+                frame = cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_NEAREST)
             return frame
         except Exception as e:
             # Logged at debug only: the caller (CameraStream) reports the

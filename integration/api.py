@@ -676,6 +676,8 @@ def v1_camera_stream(camera_id: str, _: None = Depends(require_token_query)):
 
     def frames():
         last_seq = 0
+        target_interval = 0.04  # ~25 FPS max to prevent TCP socket buffer accumulation
+        last_yield = 0.0
         try:
             while True:
                 jpeg, last_seq = cam.wait_for_frame(last_seq, timeout=3.0)
@@ -683,6 +685,10 @@ def v1_camera_stream(camera_id: str, _: None = Depends(require_token_query)):
                     if not cam.running:
                         break
                     continue
+                now = time.monotonic()
+                if now - last_yield < target_interval:
+                    continue
+                last_yield = now
                 yield (
                     b"--frame\r\nContent-Type: image/jpeg\r\n"
                     b"Content-Length: " + str(len(jpeg)).encode() + b"\r\n\r\n"
@@ -694,7 +700,14 @@ def v1_camera_stream(camera_id: str, _: None = Depends(require_token_query)):
             registry.release(camera_id)
 
     return StreamingResponse(
-        frames(), media_type="multipart/x-mixed-replace; boundary=frame"
+        frames(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
