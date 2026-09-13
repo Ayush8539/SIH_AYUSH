@@ -28,7 +28,7 @@ import time
 # and to FFmpeg's 30s stall timeout on a dropped stream. See app.py for the
 # measured UDP-vs-TCP numbers behind these values.
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
-    "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|framedrop;1|max_delay;0"
+    "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|framedrop;1|max_delay;0|probesize;32768|analyzeduration;0"
 )
 
 import cv2  # noqa: E402
@@ -153,25 +153,36 @@ class _LiveCamera:
 
         frames = 0
         window_started = time.perf_counter()
+        latest_detections = []
+        frame_idx = 0
         while not self._stop_event.is_set():
             frame = self._stream.read(timeout=0.5)
             if frame is None:
                 continue
 
+            # Drain any stale queued frames so we always display the freshest live frame
+            while True:
+                newer = self._stream.read(timeout=0)
+                if newer is None:
+                    break
+                frame = newer
+
+            frame_idx += 1
             tracker = self._tracker  # None until the loader thread finishes
             if tracker is not None:
                 try:
                     from detection.draw import draw_detections
 
-                    detections = tracker.track(frame)
-                    draw_detections(frame, detections)
+                    if frame_idx % 2 == 0 or not latest_detections:
+                        latest_detections = tracker.track(frame)
+                    draw_detections(frame, latest_detections)
                 except Exception:
                     # A detector fault must not kill the video feed; the
                     # operator still needs eyes on the camera.
                     log.exception("[%s] detection failed on a frame", self.name)
 
             ok, buf = cv2.imencode(
-                ".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
+                ".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 65]
             )
             if not ok:
                 continue

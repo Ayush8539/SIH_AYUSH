@@ -7,7 +7,7 @@ import urllib.parse
 
 # Must be set BEFORE cv2 is imported so OpenCV's FFmpeg backend uses TCP and zero buffering.
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
-    "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|framedrop;1|max_delay;0"
+    "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|framedrop;1|max_delay;0|probesize;32768|analyzeduration;0"
 )
 
 import cv2
