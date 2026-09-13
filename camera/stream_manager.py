@@ -35,6 +35,7 @@ class CameraStream:
         height: int = 480,
         *,
         reconnect_initial_delay: float = 1.0,
+        reconnect_max_delay: float = 30.0,
         max_reconnect_attempts: int = 0,  # 0 = keep retrying for as long as the app runs
         max_read_failures: int = 50,
         reconnect_log_every: int = 10,
