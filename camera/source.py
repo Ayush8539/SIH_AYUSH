@@ -1,11 +1,13 @@
 import logging
 import os
 import re
+import socket
+import urllib.parse
 
 # Must be set BEFORE cv2 is imported so OpenCV's FFmpeg backend uses TCP/UDP and fast timeouts.
 os.environ.setdefault(
     "OPENCV_FFMPEG_CAPTURE_OPTIONS",
-    "rtsp_transport;tcp;udp|timeout;5000000|stimeout;5000000|max_delay;500000",
+    "rtsp_transport;tcp;udp|timeout;3000000|stimeout;3000000|max_delay;500000",
 )
 
 import cv2
@@ -60,6 +62,18 @@ class CameraSource:
         else:
             src_str = str(src).strip()
             if src_str.lower().startswith(("rtsp://", "rtsps://", "http://", "https://")):
+                try:
+                    parsed = urllib.parse.urlparse(src_str)
+                    host = parsed.hostname
+                    port = parsed.port or (554 if "rtsp" in parsed.scheme.lower() else 80)
+                    if host:
+                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                            s.settimeout(0.6)
+                            if s.connect_ex((host, port)) != 0:
+                                raise RuntimeError(f"Network destination unreachable: {host}:{port}")
+                except Exception as e:
+                    if isinstance(e, RuntimeError):
+                        raise
                 cap = cv2.VideoCapture(src_str, cv2.CAP_FFMPEG)
                 if not cap.isOpened():
                     cap = cv2.VideoCapture(src_str)
