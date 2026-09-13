@@ -87,12 +87,18 @@ export const LiveFeedsPage: React.FC = () => {
 
   // Form State for Adding a Camera
   const [newCamId, setNewCamId] = useState(`cam${cameras.length}`);
-  const [newCamLocation, setNewCamLocation] = useState('');
+  const [newCamLocation, setNewCamLocation] = useState('Mobile Surveillance Post');
   const [newCamSector, setNewCamSector] = useState('North Border Sector');
-  const [newCamTier, setNewCamTier] = useState<'red' | 'yellow' | 'green'>('red');
-  const [sourceType, setSourceType] = useState<'local' | 'rtsp'>('local');
-  const [localCamIndex, setLocalCamIndex] = useState('0');
-  const [newCamStreamUrl, setNewCamStreamUrl] = useState('');
+  const [newCamTier, setNewCamTier] = useState<'red' | 'yellow' | 'green'>('yellow');
+  const [sourceType, setSourceType] = useState<'local' | 'rtsp'>('rtsp');
+  const [localCamIndex, setLocalCamIndex] = useState('1');
+  const [newCamStreamUrl, setNewCamStreamUrl] = useState(() => {
+    try {
+      return localStorage.getItem('last_rtsp_url') || 'rtsp://10.129.90.186:8554/';
+    } catch {
+      return 'rtsp://10.129.90.186:8554/';
+    }
+  });
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -130,7 +136,7 @@ export const LiveFeedsPage: React.FC = () => {
     }
   };
 
-  const handleOpenAddModal = (defaultTier: 'red' | 'yellow' | 'green' = 'red') => {
+  const handleOpenAddModal = (defaultTier: 'red' | 'yellow' | 'green' = 'yellow') => {
     let nextNum = cameras.length;
     let candidateId = `cam${nextNum}`;
     while (cameras.some((c) => c.id.toLowerCase() === candidateId.toLowerCase())) {
@@ -138,8 +144,13 @@ export const LiveFeedsPage: React.FC = () => {
       candidateId = `cam${nextNum}`;
     }
     setNewCamId(candidateId);
-    setNewCamLocation('');
-    setNewCamStreamUrl('');
+    setNewCamLocation('Mobile Surveillance Post');
+    setSourceType('rtsp');
+    try {
+      setNewCamStreamUrl(localStorage.getItem('last_rtsp_url') || 'rtsp://10.129.90.186:8554/');
+    } catch {
+      setNewCamStreamUrl('rtsp://10.129.90.186:8554/');
+    }
     setNewCamTier(defaultTier);
     setFormError('');
     setIsSubmitting(false);
@@ -188,6 +199,11 @@ export const LiveFeedsPage: React.FC = () => {
         setFormError(`Could not add the camera: ${res.error ?? 'backend unreachable'}`);
         setIsSubmitting(false);
         return;
+      }
+      if (sourceType === 'rtsp' && finalStreamUrl) {
+        try {
+          localStorage.setItem('last_rtsp_url', finalStreamUrl);
+        } catch {}
       }
       await refresh();
       setIsSubmitting(false);
