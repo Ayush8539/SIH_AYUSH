@@ -35,6 +35,7 @@ def resolve_camera_source(src_str: str) -> str:
         parsed = urllib.parse.urlparse(src_str)
         host = parsed.hostname
         port = parsed.port or (554 if "rtsp" in parsed.scheme.lower() else 80)
+        clean_path = parsed.path in ("", "/")
         if host and (host.startswith("192.0.0.") or host == "0.0.0.0"):
             import subprocess
 
@@ -48,7 +49,8 @@ def resolve_camera_source(src_str: str) -> str:
                         s.settimeout(0.6)
                         if s.connect_ex((gw, port)) == 0:
                             log.info("Auto-mapped mobile cellular IP %s -> %s on port %d", host, gw, port)
-                            return src_str.replace(host, gw)
+                            res = src_str.replace(host, gw)
+                            return res.rstrip("/") if clean_path else res
             except Exception:
                 pass
 
@@ -60,12 +62,16 @@ def resolve_camera_source(src_str: str) -> str:
                             s.settimeout(0.3)
                             if s.connect_ex((ip, port)) == 0:
                                 log.info("Auto-mapped mobile cellular IP %s -> %s on port %d", host, ip, port)
-                                return src_str.replace(host, ip)
+                                res = src_str.replace(host, ip)
+                                return res.rstrip("/") if clean_path else res
             except Exception:
                 pass
 
             if gw:
-                return src_str.replace(host, gw)
+                res = src_str.replace(host, gw)
+                return res.rstrip("/") if clean_path else res
+        if clean_path:
+            return src_str.rstrip("/")
     except Exception:
         pass
     return src_str
