@@ -68,7 +68,7 @@ class CameraSource:
                     port = parsed.port or (554 if "rtsp" in parsed.scheme.lower() else 80)
                     if host:
                         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                            s.settimeout(0.6)
+                            s.settimeout(2.5)
                             if s.connect_ex((host, port)) != 0:
                                 raise RuntimeError(f"Network destination unreachable: {host}:{port}")
                 except Exception as e:
