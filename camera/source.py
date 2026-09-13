@@ -1,13 +1,13 @@
 import logging
 import os
 import re
-
 import socket
 import urllib.parse
 
-# Must be set BEFORE cv2 is imported so OpenCV's FFmpeg backend uses TCP and zero buffering.
-os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
-    "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|framedrop;1|max_delay;0|probesize;32768|analyzeduration;0|buffer_size;65536|reorder_queue_size;0"
+# Must be set BEFORE cv2 is imported so OpenCV's FFmpeg backend uses TCP/UDP and fast timeouts.
+os.environ.setdefault(
+    "OPENCV_FFMPEG_CAPTURE_OPTIONS",
+    "rtsp_transport;tcp;udp|timeout;3000000|stimeout;3000000|max_delay;500000",
 )
 
 import cv2
@@ -68,7 +68,7 @@ class CameraSource:
                     port = parsed.port or (554 if "rtsp" in parsed.scheme.lower() else 80)
                     if host:
                         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                            s.settimeout(2.5)
+                            s.settimeout(0.6)
                             if s.connect_ex((host, port)) != 0:
                                 raise RuntimeError(f"Network destination unreachable: {host}:{port}")
                 except Exception as e:
