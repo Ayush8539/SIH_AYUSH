@@ -26,6 +26,51 @@ def redact_source(source) -> str:
     return _URL_CREDENTIALS.sub("//***:***@", str(source))
 
 
+def resolve_camera_source(src_str: str) -> str:
+    """If user enters the dummy cellular IP shown on Android RTSP apps (e.g. 192.0.0.2),
+    automatically resolve it to the reachable gateway or LAN device IP."""
+    if not isinstance(src_str, str):
+        return src_str
+    try:
+        parsed = urllib.parse.urlparse(src_str)
+        host = parsed.hostname
+        port = parsed.port or (554 if "rtsp" in parsed.scheme.lower() else 80)
+        if host and (host.startswith("192.0.0.") or host == "0.0.0.0"):
+            import subprocess
+
+            gw = None
+            try:
+                gw_out = subprocess.check_output("route print 0.0.0.0", text=True)
+                m = re.search(r"0\.0\.0\.0\s+0\.0\.0\.0\s+([\d.]+)", gw_out)
+                gw = m.group(1) if m else None
+                if gw:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.settimeout(0.6)
+                        if s.connect_ex((gw, port)) == 0:
+                            log.info("Auto-mapped mobile cellular IP %s -> %s on port %d", host, gw, port)
+                            return src_str.replace(host, gw)
+            except Exception:
+                pass
+
+            try:
+                arp_out = subprocess.check_output("arp -a", text=True)
+                for ip in re.findall(r"(\d+\.\d+\.\d+\.\d+)", arp_out):
+                    if not ip.endswith(".255") and not ip.startswith(("224.", "239.", "127.")):
+                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                            s.settimeout(0.3)
+                            if s.connect_ex((ip, port)) == 0:
+                                log.info("Auto-mapped mobile cellular IP %s -> %s on port %d", host, ip, port)
+                                return src_str.replace(host, ip)
+            except Exception:
+                pass
+
+            if gw:
+                return src_str.replace(host, gw)
+    except Exception:
+        pass
+    return src_str
+
+
 class CameraSource:
     """Wraps a single camera feed: a USB index (0, 1, ...), an RTSP/ONVIF URL,
     or a local video file path (useful for testing against recorded footage,
@@ -60,7 +105,8 @@ class CameraSource:
         if isinstance(src, int):
             cap = cv2.VideoCapture(src)
         else:
-            src_str = str(src).strip()
+            src_str = resolve_camera_source(str(src).strip())
+            self.source = src_str
             if src_str.lower().startswith(("rtsp://", "rtsps://", "http://", "https://")):
                 try:
                     parsed = urllib.parse.urlparse(src_str)

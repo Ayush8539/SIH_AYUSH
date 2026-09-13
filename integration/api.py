@@ -552,6 +552,9 @@ def v1_add_camera(camera: dict = Body(...), _: None = Depends(require_token)) ->
     # A bare digit is a local device index; anything else is a URL. int() here
     # matters — cv2.VideoCapture("0") opens a *file* named "0", not webcam 0.
     raw_str = str(raw).strip()
+    from camera.source import resolve_camera_source
+    if not raw_str.isdigit() and raw_str:
+        raw_str = resolve_camera_source(raw_str)
     source = int(raw_str) if raw_str.isdigit() else (raw_str or None)
     tier = str(camera.get("tier") or "red").lower()
     if tier not in ("red", "yellow", "green"):
