@@ -35,9 +35,8 @@ class CameraStream:
         height: int = 480,
         *,
         reconnect_initial_delay: float = 1.0,
-        reconnect_max_delay: float = 30.0,
         max_reconnect_attempts: int = 0,  # 0 = keep retrying for as long as the app runs
-        max_read_failures: int = 3,
+        max_read_failures: int = 50,
         reconnect_log_every: int = 10,
         stop_timeout: float = 2.0,
         camera_factory=CameraSource,
@@ -135,6 +134,7 @@ class CameraStream:
                 if failures >= self.max_read_failures:
                     self._enter_reconnecting(f"{failures} consecutive read failures")
                     return
+                time.sleep(self.RETRY_SLEEP_SECONDS)
                 continue
             failures = 0
 
@@ -223,6 +223,7 @@ class CameraStream:
                 return False
 
             self.reconnect_count += 1
+            self._drain_queue()
             self._set_health(CameraHealth.ONLINE, f"reconnected after {attempt} attempt(s)")
             log.info("[%s] camera reconnected after %d attempt(s)", self.name, attempt)
             return True

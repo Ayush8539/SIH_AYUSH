@@ -2,10 +2,12 @@ import logging
 import os
 import re
 
-# Must be set BEFORE cv2 is imported so OpenCV's FFmpeg backend uses TCP/UDP and fast timeouts.
-os.environ.setdefault(
-    "OPENCV_FFMPEG_CAPTURE_OPTIONS",
-    "rtsp_transport;tcp;udp|timeout;5000000|stimeout;5000000|max_delay;500000",
+import socket
+import urllib.parse
+
+# Must be set BEFORE cv2 is imported so OpenCV's FFmpeg backend uses TCP and zero buffering.
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+    "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|framedrop;1|max_delay;0"
 )
 
 import cv2
@@ -60,8 +62,35 @@ class CameraSource:
         else:
             src_str = str(src).strip()
             if src_str.lower().startswith(("rtsp://", "rtsps://", "http://", "https://")):
-                cap = cv2.VideoCapture(src_str, cv2.CAP_FFMPEG)
-                if not cap.isOpened():
+                try:
+                    parsed = urllib.parse.urlparse(src_str)
+                    host = parsed.hostname
+                    port = parsed.port or (554 if "rtsp" in parsed.scheme.lower() else 80)
+                    if host:
+                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                            s.settimeout(0.6)
+                            if s.connect_ex((host, port)) != 0:
+                                raise RuntimeError(f"Network destination unreachable: {host}:{port}")
+                except Exception as e:
+                    if isinstance(e, RuntimeError):
+                        raise
+
+                candidates = [src_str]
+                if src_str.endswith("/"):
+                    candidates.insert(0, src_str.rstrip("/"))
+                    candidates.append(src_str.rstrip("/") + "/live")
+                elif not parsed.path or parsed.path == "/":
+                    candidates.append(src_str + "/live")
+
+                cap = None
+                for candidate in candidates:
+                    test_cap = cv2.VideoCapture(candidate, cv2.CAP_FFMPEG)
+                    if test_cap.isOpened():
+                        cap = test_cap
+                        break
+                    test_cap.release()
+
+                if cap is None or not cap.isOpened():
                     cap = cv2.VideoCapture(src_str)
             else:
                 cap = cv2.VideoCapture(src_str)
@@ -72,11 +101,11 @@ class CameraSource:
             cap.release()
             raise RuntimeError(f"Could not open camera source: {redact_source(self.source)}")
 
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         if isinstance(src, int):
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
             cap.set(cv2.CAP_PROP_FPS, 30.0)
-            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         self.cap = cap
         log.info(

@@ -27,9 +27,8 @@ import time
 # from the dashboard would fall back to UDP (visible macroblock corruption)
 # and to FFmpeg's 30s stall timeout on a dropped stream. See app.py for the
 # measured UDP-vs-TCP numbers behind these values.
-os.environ.setdefault(
-    "OPENCV_FFMPEG_CAPTURE_OPTIONS",
-    "rtsp_transport;tcp|timeout;5000000|stimeout;5000000",
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+    "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|framedrop;1|max_delay;0"
 )
 
 import cv2  # noqa: E402
